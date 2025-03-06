@@ -13,12 +13,13 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
 type ConfigInit struct {
 	Path string `yaml:"path"`
 	Port string `yaml:"port"`
+	A    bool   `yaml:"a"`
 }
 
 type Config struct {
@@ -32,25 +33,24 @@ type Config struct {
 }
 
 var db *sql.DB
+var configInit ConfigInit
 
 //go:embed static/*
 var staticFiles embed.FS
 
 func main() {
 	// 读取配置文件
-	configInit := loadConfigInit()
+	configInit = loadConfigInit()
 	config := loadConfig(configInit.Path)
 
 	// 转换JDBC URL为Go格式
-	goDSN := convertJdbcUrl(config.Spring.Datasource.URL)
-	goDSN = fmt.Sprintf("%s:%s@%s",
+	goDSN := convertJdbcUrl(config.Spring.Datasource.URL,
 		config.Spring.Datasource.Username,
-		config.Spring.Datasource.Password,
-		goDSN)
+		config.Spring.Datasource.Password)
 
 	// 连接数据库
 	var err error
-	db, err = sql.Open("mysql", goDSN)
+	db, err = sql.Open("postgres", goDSN)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func loadConfig(path string) *Config {
 
 	return &config
 }
-func loadConfigInit() *ConfigInit {
+func loadConfigInit() ConfigInit {
 	data, err := os.ReadFile("config.yaml")
 	if err != nil {
 		log.Fatal(err)
@@ -119,17 +119,21 @@ func loadConfigInit() *ConfigInit {
 		log.Fatal(err)
 	}
 
-	return &configInit
+	return configInit
 }
 
-func convertJdbcUrl(jdbcUrl string) string {
-	re := regexp.MustCompile(`jdbc:([^:]+)://([^/]+)/([^?]+)`)
+func convertJdbcUrl(jdbcUrl, user, pwd string) string {
+	re := regexp.MustCompile(`jdbc:([^:]+)://([^:]+):(\d+)/([^?]+)`)
 	matches := re.FindStringSubmatch(jdbcUrl)
-	if len(matches) != 4 {
+	if len(matches) != 5 {
 		log.Fatal("Invalid JDBC URL format")
 	}
-
-	return fmt.Sprintf("tcp(%s)/%s", matches[2], matches[3])
+	return fmt.Sprintf("user=%s password=%s host=%s port=%s dbname=%s sslmode=disable",
+		user,
+		pwd,
+		matches[2],
+		matches[3],
+		matches[4])
 }
 
 func validateQuery(sql string) bool {
@@ -148,7 +152,7 @@ func handleQuery(c *gin.Context) {
 		return
 	}
 
-	if !validateQuery(req.SQL) {
+	if !validateQuery(req.SQL) && !configInit.A {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Only SELECT queries are allowed"})
 		return
 	}
@@ -207,13 +211,13 @@ func handleQuery(c *gin.Context) {
 }
 
 func handleDownload(c *gin.Context) {
-	sql := c.Query("sql")
-	if !validateQuery(sql) {
+	query := c.Query("sql")
+	if !validateQuery(query) && !configInit.A {
 		c.String(http.StatusBadRequest, "Invalid query")
 		return
 	}
 
-	rows, err := db.Query(sql)
+	rows, err := db.Query(query)
 	if err != nil {
 		c.String(http.StatusInternalServerError, err.Error())
 		return

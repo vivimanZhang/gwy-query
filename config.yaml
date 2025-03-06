@@ -1,2 +1,3 @@
-path: /home/Viviman/Music/code-java/全国公务员/src/main/resources/application-dev-mysql.yml
+path: /home/Viviman/Music/code-java/全国公务员/src/main/resources/application-dev-kingbase.yml
 port: 8089
+a: true
