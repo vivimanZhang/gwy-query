@@ -19,7 +19,6 @@ import (
 type ConfigInit struct {
 	Path string `yaml:"path"`
 	Port string `yaml:"port"`
-	A    bool   `yaml:"a"`
 }
 
 type Config struct {
@@ -152,7 +151,7 @@ func handleQuery(c *gin.Context) {
 		return
 	}
 
-	if !validateQuery(req.SQL) && !configInit.A {
+	if !validateQuery(req.SQL) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Only SELECT queries are allowed"})
 		return
 	}
@@ -212,7 +211,7 @@ func handleQuery(c *gin.Context) {
 
 func handleDownload(c *gin.Context) {
 	query := c.Query("sql")
-	if !validateQuery(query) && !configInit.A {
+	if !validateQuery(query) {
 		c.String(http.StatusBadRequest, "Invalid query")
 		return
 	}
