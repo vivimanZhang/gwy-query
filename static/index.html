@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>查询工具</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+    <h1>查询工具</h1>
+    <div class="query-box">
+        <label for="sql"></label><textarea id="sql" placeholder="Enter SELECT query"></textarea>
+        <div class="buttons">
+            <button onclick="executeQuery()">Execute</button>
+            <button onclick="downloadCSV()">Download CSV</button>
+        </div>
+    </div>
+    <div id="result"></div>
+</div>
+<script src="/static/script.js"></script>
+</body>
+</html>
