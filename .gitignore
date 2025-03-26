@@ -4,3 +4,4 @@
 /go.work.sum
 /output_arm64
 /main
+/dist/
