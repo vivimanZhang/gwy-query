@@ -1,63 +1,16 @@
 project_name: gwy-query
-
 builds:
-  - binary: gwy-query
-    env:
+  - env:
       - CGO_ENABLED=0
     goos:
       - linux
+      # - darwin
+      # - windows
     goarch:
-      - arm64
-
-archives:
-  - format: tar.gz
-    files:
-      - config.yaml
-
+      # - "amd64"
+      - "arm64"
+      # - "386"
 release:
-  draft: false
-  name_template: "{{.ProjectName}}-{{.Version}}"
   github:
-    owner: vivimanZhang
-    name: gwy-query
-
-checksum:
-  name_template: 'checksums.txt'
-
-snapshot:
-  name_template: "{{.ProjectName}}-{{.Version}}-SNAPSHOT"
-
-nfpms:
-  - id: "default"  # 必须添加的唯一标识
-    package_name: "gwy-query"  # 明确指定包名
-    vendor: "VIVIB"
-    homepage: https://www.viviman.top
-    maintainer: vivib@foxmail.com
-    description: 外置查询应用
-    license: MIT
-    # 不再支持 section/priority 字段
-    # 若需要deb特定参数，需在deb子项中配置
-
-    formats: ["deb"]  # 原targets改为formats，且格式名为deb
-
-    contents:  # 原files改为contents列表
-      - src: "./dist/gwy-query_linux_arm64/gwy-query"  # 自动生成的二进制路径
-        dst: "/usr/local/bin/gwy-query"  # 建议安装到标准二进制目录
-        type: "file"  # 明确指定类型为文件
-
-      - src: "config.yaml"
-        dst: "/etc/gwy-query/config.yaml"  # 配置文件建议放到/etc目录
-        type: "config|noreplace"  # 标记为配置文件，且不覆盖已有配置
-
-    # 目录结构处理
-    # 原from_dir替换为具体文件映射
-    # 删除overwrite字段，通过type参数控制文件行为
-
-    # deb特定配置
-    deb:
-      # 原section/priority在这里配置
-      section: "base"
-      priority: "optional"
-      scripts:
-        # 可添加preinst/postinst等脚本
-        postinstall: "scripts/postinstall.sh"
+    owner: https://github.com/vivimanZhang/gwy-query.git
+    name: VivimanZhang
