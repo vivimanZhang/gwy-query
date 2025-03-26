@@ -2,3 +2,5 @@
 /.idea/
 /kingbase.com/gokb/go.sum
 /go.work.sum
+/output_arm64
+/main

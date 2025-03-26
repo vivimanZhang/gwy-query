@@ -19,6 +19,7 @@ import (
 type ConfigInit struct {
 	Path string `yaml:"path"`
 	Port string `yaml:"port"`
+	A    bool   `yaml:"a,omitempty"`
 }
 
 type Config struct {
@@ -33,6 +34,7 @@ type Config struct {
 
 var db *sql.DB
 var configInit ConfigInit
+var notSelect = false
 
 //go:embed static/*
 var staticFiles embed.FS
@@ -43,7 +45,8 @@ func main() {
 	config := loadConfig(configInit.Path)
 
 	// 转换JDBC URL为Go格式
-	goDSN := convertJdbcUrl(config.Spring.Datasource.URL,
+	goDSN := convertJdbcUrl(
+		config.Spring.Datasource.URL,
 		config.Spring.Datasource.Username,
 		config.Spring.Datasource.Password)
 
@@ -53,7 +56,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(db)
 
 	// 初始化Gin
 	r := gin.Default()
@@ -78,7 +86,7 @@ func main() {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", data)
 	})
 
-	r.POST("/query", handleQuery)
+	r.POST("/query", ExecuteSQL)
 	r.GET("/download", handleDownload)
 
 	if strings.TrimSpace(configInit.Port) == "" {
@@ -118,6 +126,8 @@ func loadConfigInit() ConfigInit {
 		log.Fatal(err)
 	}
 
+	notSelect = configInit.A
+
 	return configInit
 }
 
@@ -135,39 +145,53 @@ func convertJdbcUrl(jdbcUrl, user, pwd string) string {
 		matches[4])
 }
 
-func validateQuery(sql string) bool {
-	matched, _ := regexp.MatchString(`^SELECT\s+.*`, strings.ToUpper(sql))
-	return matched && !strings.Contains(sql, ";")
+func validateQuery(sql string, notSelect bool) bool {
+	if notSelect {
+		return true
+	} else {
+		matched, _ := regexp.MatchString(`^SELECT\s+.*`, strings.ToUpper(sql))
+		return matched && !strings.Contains(sql, ";")
+	}
 }
 
-func handleQuery(c *gin.Context) {
-	type Request struct {
-		SQL string `json:"sql"`
+// ExecuteSQL handles both queries and non-query statements
+func ExecuteSQL(c *gin.Context) {
+	var req struct {
+		SQL string `json:"sql" binding:"required"`
 	}
-
-	var req Request
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if !validateQuery(req.SQL) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only SELECT queries are allowed"})
-		return
-	}
+	// Check if it's a SELECT query
+	isQuery := strings.HasPrefix(strings.TrimSpace(strings.ToUpper(req.SQL)), "SELECT")
 
-	// 执行查询
-	rows, err := db.Query(req.SQL)
+	if isQuery {
+		handleQuery(c, db, req.SQL)
+	} else {
+		if notSelect {
+			handleNonQuery(c, db, req.SQL)
+		}
+	}
+}
+
+func handleQuery(c *gin.Context, db *sql.DB, sqlStr string) {
+	rows, err := db.Query(sqlStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(rows)
 
 	columns, _ := rows.Columns()
 	result := make([]map[string]interface{}, 0)
 
-	// 读取前5条记录
 	count := 0
 	for rows.Next() && count < 5 {
 		values := make([]interface{}, len(columns))
@@ -176,29 +200,20 @@ func handleQuery(c *gin.Context) {
 			scanArgs[i] = &values[i]
 		}
 
-		err = rows.Scan(scanArgs...)
-		if err != nil {
+		if err := rows.Scan(scanArgs...); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
 		rowData := make(map[string]interface{})
 		for i, col := range columns {
-			// Convert values to string explicitly
 			switch v := values[i].(type) {
 			case []byte:
-				rowData[col] = string(v) // Convert []byte to string
-			case string:
-				rowData[col] = v
-			case int, int64, float64, bool:
-				rowData[col] = v
-			case nil:
-				rowData[col] = nil
+				rowData[col] = string(v)
 			default:
-				rowData[col] = fmt.Sprintf("%v", v) // Fallback to string representation
+				rowData[col] = v
 			}
 		}
-
 		result = append(result, rowData)
 		count++
 	}
@@ -209,9 +224,57 @@ func handleQuery(c *gin.Context) {
 	})
 }
 
+func handleNonQuery(c *gin.Context, db *sql.DB, sqlStr string) {
+	// Split multiple statements
+	statements := strings.Split(sqlStr, ";")
+	results := make([]map[string]interface{}, 0)
+
+	for _, stmt := range statements {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+
+		result, err := execStatement(db, stmt)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":      err.Error(),
+				"statement":  stmt,
+				"successful": results,
+			})
+			return
+		}
+		results = append(results, result)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"results": results,
+	})
+}
+
+func execStatement(db *sql.DB, stmt string) (map[string]interface{}, error) {
+	res, err := db.Exec(stmt)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]interface{})
+	result["statement"] = stmt
+
+	if affected, err := res.RowsAffected(); err == nil {
+		result["rows_affected"] = affected
+	}
+
+	if lastId, err := res.LastInsertId(); err == nil {
+		result["last_insert_id"] = lastId
+	}
+
+	return result, nil
+}
+
 func handleDownload(c *gin.Context) {
 	query := c.Query("sql")
-	if !validateQuery(query) {
+	if !validateQuery(query, false) {
 		c.String(http.StatusBadRequest, "Invalid query")
 		return
 	}
@@ -221,7 +284,12 @@ func handleDownload(c *gin.Context) {
 		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(rows)
 
 	c.Writer.Header().Set("Content-Type", "text/csv")
 	c.Writer.Header().Set("Content-Disposition", "attachment; filename=export.csv")
@@ -229,7 +297,7 @@ func handleDownload(c *gin.Context) {
 	defer writer.Flush()
 
 	columns, _ := rows.Columns()
-	writer.Write(columns)
+	_ = writer.Write(columns)
 
 	values := make([]interface{}, len(columns))
 	scanArgs := make([]interface{}, len(columns))
@@ -263,6 +331,6 @@ func handleDownload(c *gin.Context) {
 			}
 		}
 
-		writer.Write(record)
+		_ = writer.Write(record)
 	}
 }
