@@ -33,4 +33,4 @@ nfpms:
     license: MIT
     section: base
     priority: optional
-    bindir: /usr/bin
+    bindir: /opt/gwy
