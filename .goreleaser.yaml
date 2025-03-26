@@ -29,10 +29,10 @@ nfpms:
     license: MIT
     section: base
     priority: optional
-    files:
-      - ./gwy-query=/opt/gwy/
-      - ./config.yaml=/opt/gwy/
+    inputs:
+      - ./gwy-query
+      - ./config.yaml
+    install: /opt/gwy
     overwrite: true
-    from_dir: ./dist
     targets:
       - debian
