@@ -5,28 +5,25 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
-      # - darwin
-      # - windows
     goarch:
-      # - "amd64"
-      - "arm64"
-      # - "386"
+      - arm64
 archives:
   - format: tar.gz
     files:
       - config.yaml
 release:
   draft: false
-  name_template: "{{.project_name}}-{{.Version}}"
+  name_template: "{{.ProjectName}}-{{.Version}}"
   github:
-    owner: https://github.com/vivimanZhang/gwy-query.git
-    name: VivimanZhang
+    owner: vivimanZhang
+    name: gwy-query
 checksum:
   name_template: 'checksums.txt'
 snapshot:
   name_template: "{{.ProjectName}}-{{.Version}}-SNAPSHOT"
 nfpms:
-  - vendor: VIVIB
+  - package: gwy-query
+    vendor: VIVIB
     homepage: https://www.viviman.top
     maintainer: vivib@foxmail.com
     description: 外置查询应用
@@ -34,3 +31,10 @@ nfpms:
     section: base
     priority: optional
     bindir: /opt/gwy
+    files:
+      - ./gwy-query=/opt/gwy/
+      - ./config.yaml=/opt/gwy/
+    overwrite: true
+    from_dir: ./dist
+    targets:
+      - debian
