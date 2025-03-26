@@ -160,7 +160,7 @@ func ExecuteSQL(c *gin.Context) {
 		SQL string `json:"sql" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"解析JSON发生": err.Error()})
 		return
 	}
 
@@ -172,6 +172,9 @@ func ExecuteSQL(c *gin.Context) {
 	} else {
 		if notSelect {
 			handleNonQuery(c, db, req.SQL)
+		} else {
+			c.String(http.StatusBadRequest, "仅限查询操作！")
+			return
 		}
 	}
 }
@@ -179,7 +182,7 @@ func ExecuteSQL(c *gin.Context) {
 func handleQuery(c *gin.Context, db *sql.DB, sqlStr string) {
 	rows, err := db.Query(sqlStr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"执行查询发生异常": err.Error()})
 		return
 	}
 	defer func(rows *sql.Rows) {
@@ -201,7 +204,7 @@ func handleQuery(c *gin.Context, db *sql.DB, sqlStr string) {
 		}
 
 		if err := rows.Scan(scanArgs...); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"转换查询结果发生异常": err.Error()})
 			return
 		}
 
@@ -275,13 +278,13 @@ func execStatement(db *sql.DB, stmt string) (map[string]interface{}, error) {
 func handleDownload(c *gin.Context) {
 	query := c.Query("sql")
 	if !validateQuery(query, false) {
-		c.String(http.StatusBadRequest, "Invalid query")
+		c.String(http.StatusBadRequest, "仅限查询操作！")
 		return
 	}
 
 	rows, err := db.Query(query)
 	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
+		c.String(http.StatusInternalServerError, "查询发生异常："+err.Error())
 		return
 	}
 	defer func(rows *sql.Rows) {

@@ -1,0 +1,16 @@
+project_name: gwy-query
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      # - darwin
+      # - windows
+    goarch:
+      - "amd64"
+      - "arm64"
+      # - "386"
+release:
+  github:
+    owner: https://github.com/vivimanZhang/gwy-query.git
+    name: VivimanZhang
