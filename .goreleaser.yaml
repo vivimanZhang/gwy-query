@@ -4,13 +4,38 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
-      # - darwin
-      # - windows
     goarch:
-      # - "amd64"
-      - "arm64"
-      # - "386"
+      - amd64
+    id: "default"  # 需要明确指定 id 供后续引用
+
+nfpms:
+  - id: gwy-query
+    package_name: gwy-query
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: "Viviman"
+    homepage: "https://github.com/vivimanZhang/gwy-query"
+    maintainer: "Your Name <your.email@example.com>"
+    description: "Gwy Query Application"
+    license: "MIT"
+    formats:
+      - deb
+    replaces:
+      - old-package-name
+    contents:
+      # 主程序安装到 /opt/gwy-query/gwy-query
+      - src: dist/default_linux_amd64_v1/gwy-query
+        dst: /opt/apps/gwy-query/gwy-query
+        file_info:
+          mode: 0755
+      # 配置文件安装到 /opt/apps/gwy-query/config.yaml
+      - src: config.yaml
+        dst: /opt/apps/gwy-query/config.yaml
+        type: config|noreplace  # 标记为配置文件，升级时不会覆盖
+        file_info:
+          mode: 0644
+
+
 release:
   github:
-    owner: https://github.com/vivimanZhang/gwy-query.git
-    name: VivimanZhang
+    owner: vivimanZhang
+    name: gwy-query
