@@ -5,7 +5,7 @@ builds:
     goos:
       - linux
     goarch:
-      - amd64
+      - arm64
     id: "default"  # 需要明确指定 id 供后续引用
 
 nfpms:
@@ -14,8 +14,8 @@ nfpms:
     file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     vendor: "Viviman"
     homepage: "https://github.com/vivimanZhang/gwy-query"
-    maintainer: "Your Name <your.email@example.com>"
-    description: "Gwy Query Application"
+    maintainer: "vivib@foxmail.com"
+    description: "公务员-查询小工具"
     license: "MIT"
     formats:
       - deb
@@ -23,7 +23,7 @@ nfpms:
       - old-package-name
     contents:
       # 主程序安装到 /opt/gwy-query/gwy-query
-      - src: dist/default_linux_amd64_v1/gwy-query
+      - src: dist/default_linux_arm64/gwy-query
         dst: /opt/apps/gwy-query/gwy-query
         file_info:
           mode: 0755
